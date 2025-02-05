@@ -1,16 +1,12 @@
-// Dear ImGui: standalone example application for DirectX 11
-
-// Learn about Dear ImGui:
-// - FAQ                  https://dearimgui.com/faq
-// - Getting Started      https://dearimgui.com/getting-started
-// - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
-// - Introduction, links and more at the top of imgui.cpp
-
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 #include <d3d11.h>
 #include <tchar.h>
+#include "Client.h"
+#include <vector>
+
+#pragma comment(lib,"d3d11.lib")
 
 // Data
 static ID3D11Device* g_pd3dDevice = nullptr;
@@ -26,6 +22,7 @@ void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 
 // Main code
 int main(int, char**)
@@ -63,26 +60,21 @@ int main(int, char**)
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    //io.Fonts->AddFontDefault();
-    //io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    //io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    //ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
-    //IM_ASSERT(font != nullptr);
-
     // Our state
     bool show_demo_window = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    
+    // 变量定义
+    static bool isConnected = false;    // 用于控制是否连接
+    static std::string username = "";    // 存储用户名
+    static std::vector<std::string> activeUsers; // 存储已经加入聊天室的用户
+
+    static std::vector<std::string> messages;
+    std::string message;
+    std::thread cli = std::thread(client, std::ref(message));
+
 
     // Main loop
     bool done = false;
@@ -123,41 +115,110 @@ int main(int, char**)
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
+        
+        
         {
-            static float f = 0.0f;
-            static int counter = 0;
+            // 新建窗口用于输入用户名和连接按钮
+            if (!isConnected) {
+                ImGui::Begin("Login", nullptr, ImGuiWindowFlags_NoCollapse);
+                ImGui::Text("Enter your username:");
 
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
+                // 输入框
+                static char inputText[256] = "";
+                ImGui::InputText("##username", inputText, IM_ARRAYSIZE(inputText));
 
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
+                // 连接按钮
+                if (strlen(inputText) > 0) {
+                    if (ImGui::Button("Connect", ImVec2(100, 30))) {
+                        if (isConnected && cli.joinable()) {
+                            cli.detach();
+                        }
+                        username = inputText;  // 保存用户名
+                        isConnected = true;  // 连接成功
+                        activeUsers.push_back(username); // 将用户名添加到活跃用户列表
+                        inputText[0] = '\0';  // 清空输入框
+                        BroadcastNewUser(client_socket, username);
+                    }
+                }
+                else {
+                    ImGui::BeginDisabled();
+                    ImGui::Button("Connect", ImVec2(100, 30));
+                    ImGui::EndDisabled();
+                }
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
+                ImGui::End();
+            }
+            else {
+                // 显示聊天室窗口
+                ImGui::Begin("Chat Room", nullptr, ImGuiWindowFlags_NoCollapse);
 
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
+                // 更新消息
+                if (message.size() > 0) {
+                    if (message.front() == '+') {
+                        std::cout << "a name added" << "\n";
+                        message.erase(0, 1);
+                        activeUsers.push_back(message);
+                    }
+                    else {
+                        std::cout << "a message" << "\n";
+                        messages.push_back(message);
+                    }
+                }
+                message.clear();
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
+                // 左侧用户列表，显示活跃用户
+                ImGui::BeginChild("UserList", ImVec2(200, 0), true);
+                ImGui::Text("Users:");
+                ImGui::Separator();
+                for (const auto& user : activeUsers) {
+                    ImGui::Text("%s", user.c_str());
+                }
+                ImGui::EndChild();
 
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
+                ImGui::SameLine();
+
+                // 右侧聊天窗口
+                ImGui::BeginChild("ChatWindow", ImVec2(0, -60), true);
+                ImGui::Text("Chat Messages:");
+                ImGui::Separator();
+
+                
+
+                for (const auto& message : messages) {
+                    ImGui::TextWrapped("%s", message.c_str());
+                }
+
+                ImGui::EndChild();
+
+                // 输入框和发送按钮放在聊天窗口下方
+                ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 40);
+                ImGui::Separator();
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 110);
+                static char inputText[256] = "";
+                ImGui::InputText("##input", inputText, IM_ARRAYSIZE(inputText));
+                ImGui::SameLine();
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.6f, 0.1f, 1.0f));
+                if (ImGui::Button("Send", ImVec2(100, 30))) {
+                    if (strlen(inputText) > 0) {
+                        messages.push_back(username + ": " + std::string(inputText));
+                        SendMessageToServer(client_socket, inputText);
+                        inputText[0] = '\0';
+                    }
+                }
+                ImGui::PopStyleColor(3);
+
+                // 断开连接按钮
+                ImGui::SameLine();
+                if (ImGui::Button("Disconnect", ImVec2(100, 30))) {
+                    isConnected = false; // 断开连接
+                    activeUsers.clear();  // 清空活跃用户列表
+                }
+
+                ImGui::End();
+            }
+
         }
 
         // Rendering
