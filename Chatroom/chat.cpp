@@ -158,12 +158,16 @@ int main(int, char**)
                         std::cout << "a name added" << "\n";
                         message.erase(0, 1);
                         activeUsers.push_back(message);
+                        message = message + " joined the channel!";
+                        messages.push_back(message);
                     }
                     else if (message.front() == '-') {
                         std::cout << "a name delete" << "\n";
                         message.erase(0, 1);
                         auto it = std::find(activeUsers.begin(), activeUsers.end(), message);
                         activeUsers.erase(it);
+                        message = message + " is disconnected!";
+                        messages.push_back(message);
                     }
                     else {
                         std::cout << "a message" << "\n";
@@ -237,6 +241,7 @@ int main(int, char**)
                     messages.clear();
                     username.clear();
                     message.clear();
+                    done = true;
                 }
                 ImGui::PopStyleColor(3);
 
