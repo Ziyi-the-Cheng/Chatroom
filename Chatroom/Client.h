@@ -14,37 +14,9 @@
 
 std::atomic<bool> close = false;
 
-std::string username;
 
 SOCKET client_socket = INVALID_SOCKET;
 
-
-void Send(SOCKET client_socket) {
-    int count = 0;
-    while (!close) {
-        if (_kbhit()) { // non-blocking keyboard input 
-            std::cout << "Mike: ";
-            std::string sentence;
-
-            std::getline(std::cin, sentence);
-
-            if (sentence == "!bye") {
-                close = true;
-                std::cout << "Exiting\n";
-            }
-
-            sentence = username + ": " + sentence;
-
-            // Send the sentence to the server
-            if (send(client_socket, sentence.c_str(), static_cast<int>(sentence.size()), 0) == SOCKET_ERROR) {
-                if (close) std::cout << "Terminating\n";
-                else std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
-                break;
-            }
-        }
-    }
-    closesocket(client_socket);
-}
 
 void SendMessageToServer(SOCKET client_socket, const std::string& message) {
     if (send(client_socket, message.c_str(), static_cast<int>(message.size()), 0) == SOCKET_ERROR) {

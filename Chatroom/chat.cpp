@@ -135,7 +135,7 @@ int main(int, char**)
                         }
                         username = inputText;  // 保存用户名
                         isConnected = true;  // 连接成功
-                        activeUsers.push_back(username); // 将用户名添加到活跃用户列表
+                        activeUsers.push_back(inputText); // 将用户名添加到活跃用户列表
                         inputText[0] = '\0';  // 清空输入框
                         BroadcastNewUser(client_socket, username);
                     }
@@ -158,6 +158,12 @@ int main(int, char**)
                         std::cout << "a name added" << "\n";
                         message.erase(0, 1);
                         activeUsers.push_back(message);
+                    }
+                    else if (message.front() == '-') {
+                        std::cout << "a name delete" << "\n";
+                        message.erase(0, 1);
+                        auto it = std::find(activeUsers.begin(), activeUsers.end(), message);
+                        activeUsers.erase(it);
                     }
                     else {
                         std::cout << "a message" << "\n";
@@ -190,13 +196,21 @@ int main(int, char**)
 
                 ImGui::EndChild();
 
-                // 输入框和发送按钮放在聊天窗口下方
-                ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 40);
+                // 聊天输入框和按钮在聊天窗口下方
+                ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 60);
                 ImGui::Separator();
-                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 110);
+                ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 220);
                 static char inputText[256] = "";
-                ImGui::InputText("##input", inputText, IM_ARRAYSIZE(inputText));
+                if (ImGui::InputText("##input", inputText, IM_ARRAYSIZE(inputText), ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    if (strlen(inputText) > 0) {
+                        messages.push_back(username + ": " + std::string(inputText));
+                        SendMessageToServer(client_socket, inputText);
+                        inputText[0] = '\0';  // 清空输入框
+                    }
+                }
                 ImGui::SameLine();
+
+                // 发送按钮
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.6f, 0.1f, 1.0f));
@@ -204,17 +218,28 @@ int main(int, char**)
                     if (strlen(inputText) > 0) {
                         messages.push_back(username + ": " + std::string(inputText));
                         SendMessageToServer(client_socket, inputText);
-                        inputText[0] = '\0';
+                        inputText[0] = '\0';  // 清空输入框
                     }
                 }
                 ImGui::PopStyleColor(3);
 
-                // 断开连接按钮
+                // 断开连接按钮放在底部右侧
                 ImGui::SameLine();
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.2f, 0.2f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f, 0.3f, 0.3f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
                 if (ImGui::Button("Disconnect", ImVec2(100, 30))) {
-                    isConnected = false; // 断开连接
-                    activeUsers.clear();  // 清空活跃用户列表
+                    std::string dmessage = "-" + username;
+                    SendMessageToServer(client_socket, dmessage);
+                    // 回到登录界面，重置状态
+                    isConnected = false;
+                    activeUsers.clear();
+                    messages.clear();
+                    username.clear();
+                    message.clear();
                 }
+                ImGui::PopStyleColor(3);
+
 
                 ImGui::End();
             }
