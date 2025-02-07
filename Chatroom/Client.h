@@ -24,10 +24,12 @@ void SendMessageToServer(SOCKET client_socket, std::string message) {
     }
 }
 
-void BroadcastNewUser(SOCKET client_socket, std::string username) {
-    if (send(client_socket, username.c_str(), static_cast<int>(username.size()), 0) == SOCKET_ERROR) {
+void SendPrivateMessageToServer(SOCKET client_socket, std::string chatUser, std::string message) {
+    chatUser = "#" + chatUser;
+    if (send(client_socket, chatUser.c_str(), static_cast<int>(chatUser.size()), 0) == SOCKET_ERROR) {
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
+    send(client_socket, message.c_str(), static_cast<int>(message.size()), 0) == SOCKET_ERROR;
 }
 
 void Receive(SOCKET client_socket, std::string& message) {

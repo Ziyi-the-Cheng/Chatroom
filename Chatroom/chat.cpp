@@ -5,6 +5,8 @@
 #include <tchar.h>
 #include "Client.h"
 #include <vector>
+#include <map>
+#include <set>
 
 #pragma comment(lib,"d3d11.lib")
 
@@ -75,6 +77,9 @@ int main(int, char**)
     std::string message;
     std::thread cli = std::thread(client, std::ref(message));
 
+    static std::map<std::string, std::vector<std::string>> privateMessages; // 每个用户都有独立的消息列表
+    static std::set<std::string> openChatWindows; // 跟踪已打开的私聊窗口
+
 
     // Main loop
     bool done = false;
@@ -137,7 +142,7 @@ int main(int, char**)
                         isConnected = true;  // 连接成功
                         activeUsers.push_back(inputText); // 将用户名添加到活跃用户列表
                         inputText[0] = '\0';  // 清空输入框
-                        BroadcastNewUser(client_socket, username);
+                        SendMessageToServer(client_socket, username);
                     }
                 }
                 else {
@@ -169,6 +174,19 @@ int main(int, char**)
                         message = message + " is disconnected!";
                         messages.push_back(message);
                     }
+                    else if (message.front() == '#') {
+                        std::cout << "recieved a DM";
+                        size_t start = message.find('#') + 1;   // 找到 '#' 后面的第一个字符
+                        size_t end = message.find(':');         // 找到 ':'
+                        std::string sender = message.substr(start, end - start);  // 提取 'neil'
+                        std::string content = message.substr(end);
+                        if (openChatWindows.find(sender) != openChatWindows.end()) {
+                            privateMessages[sender].push_back(content);
+                        }
+                        else {
+                            
+                        }
+                    }
                     else {
                         std::cout << "a message" << "\n";
                         messages.push_back(message);
@@ -181,7 +199,9 @@ int main(int, char**)
                 ImGui::Text("Users:");
                 ImGui::Separator();
                 for (const auto& user : activeUsers) {
-                    ImGui::Text("%s", user.c_str());
+                    if (ImGui::Selectable(user.c_str())) {
+                        openChatWindows.insert(user); // 打开私聊窗口
+                    }
                 }
                 ImGui::EndChild();
 
@@ -192,13 +212,49 @@ int main(int, char**)
                 ImGui::Text("Chat Messages:");
                 ImGui::Separator();
 
-                
-
                 for (const auto& message : messages) {
                     ImGui::TextWrapped("%s", message.c_str());
                 }
 
                 ImGui::EndChild();
+
+                // 处理私聊窗口
+                for (const auto& chatUser : openChatWindows) {
+                    ImGui::Begin((chatUser + " (Private Chat)").c_str(), nullptr, ImGuiWindowFlags_NoCollapse);
+
+                    // 私聊消息显示
+                    ImGui::BeginChild("PrivateChatWindow", ImVec2(0, -60), true);
+                    for (const auto& privateMsg : privateMessages[chatUser]) {
+                        ImGui::TextWrapped("%s", privateMsg.c_str());
+                    }
+                    ImGui::EndChild();
+
+                    // 私聊消息输入框和发送按钮
+                    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 60);
+                    ImGui::Separator();
+                    static char privateInputText[256] = "";
+                    ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 110);
+                    if (ImGui::InputText(("##input" + chatUser).c_str(), privateInputText, IM_ARRAYSIZE(privateInputText), ImGuiInputTextFlags_EnterReturnsTrue)) {
+                        if (strlen(privateInputText) > 0) {
+                            privateMessages[chatUser].push_back(username + " (Private): " + std::string(privateInputText));
+                            SendPrivateMessageToServer(client_socket, chatUser, privateInputText);
+                            privateInputText[0] = '\0';  // 清空输入框
+                        }
+                    }
+                    ImGui::SameLine();
+
+                    if (ImGui::Button(("Send##" + chatUser).c_str(), ImVec2(100, 30))) {
+                        if (strlen(privateInputText) > 0) {
+                            privateMessages[chatUser].push_back(username + " (Private): " + std::string(privateInputText));
+                            SendPrivateMessageToServer(client_socket, chatUser, privateInputText);
+                            privateInputText[0] = '\0';  // 清空输入框
+                        }
+                    }
+
+                    ImGui::End();
+
+                }
+
 
                 // 聊天输入框和按钮在聊天窗口下方
                 ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 60);
