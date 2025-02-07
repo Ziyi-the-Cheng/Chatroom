@@ -180,12 +180,11 @@ int main(int, char**)
                         size_t end = message.find(':');         // 找到 ':'
                         std::string sender = message.substr(start, end - start);  // 提取 'neil'
                         std::string content = message.substr(end);
-                        if (openChatWindows.find(sender) != openChatWindows.end()) {
-                            privateMessages[sender].push_back(content);
+                        message.erase(0, 1);
+                        if (openChatWindows.find(sender) == openChatWindows.end()) {
+                            openChatWindows.insert(sender); // 打开私聊窗口
                         }
-                        else {
-                            
-                        }
+                        privateMessages[sender].push_back(message);
                     }
                     else {
                         std::cout << "a message" << "\n";
