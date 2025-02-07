@@ -179,12 +179,12 @@ int main(int, char**)
                         size_t start = message.find('#') + 1;   // 找到 '#' 后面的第一个字符
                         size_t end = message.find(':');         // 找到 ':'
                         std::string sender = message.substr(start, end - start);  // 提取 'neil'
-                        std::string content = message.substr(end);
-                        message.erase(0, 1);
+                        std::string content = message.substr(end + 1);
+                        std::string output = sender + ": " + content;
                         if (openChatWindows.find(sender) == openChatWindows.end()) {
                             openChatWindows.insert(sender); // 打开私聊窗口
                         }
-                        privateMessages[sender].push_back(message);
+                        privateMessages[sender].push_back(output);
                     }
                     else {
                         std::cout << "a message" << "\n";
@@ -218,12 +218,13 @@ int main(int, char**)
                 ImGui::EndChild();
 
                 // 处理私聊窗口
-                for (const auto& chatUser : openChatWindows) {
-                    ImGui::Begin((chatUser + " (Private Chat)").c_str(), nullptr, ImGuiWindowFlags_NoCollapse);
+                for (auto it = openChatWindows.begin(); it != openChatWindows.end(); ) {
+                    bool isOpen = true;
+                    ImGui::Begin(((*it) + " (Private Chat)").c_str(), &isOpen, ImGuiWindowFlags_NoCollapse);
 
                     // 私聊消息显示
                     ImGui::BeginChild("PrivateChatWindow", ImVec2(0, -60), true);
-                    for (const auto& privateMsg : privateMessages[chatUser]) {
+                    for (const auto& privateMsg : privateMessages[*it]) {
                         ImGui::TextWrapped("%s", privateMsg.c_str());
                     }
                     ImGui::EndChild();
@@ -233,26 +234,34 @@ int main(int, char**)
                     ImGui::Separator();
                     static char privateInputText[256] = "";
                     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 110);
-                    if (ImGui::InputText(("##input" + chatUser).c_str(), privateInputText, IM_ARRAYSIZE(privateInputText), ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    if (ImGui::InputText(("##input" + *it).c_str(), privateInputText, IM_ARRAYSIZE(privateInputText), ImGuiInputTextFlags_EnterReturnsTrue)) {
                         if (strlen(privateInputText) > 0) {
-                            privateMessages[chatUser].push_back(username + " (Private): " + std::string(privateInputText));
-                            SendPrivateMessageToServer(client_socket, chatUser, privateInputText);
+                            privateMessages[*it].push_back("You: " + std::string(privateInputText));
+                            SendPrivateMessageToServer(client_socket, *it, privateInputText);
                             privateInputText[0] = '\0';  // 清空输入框
                         }
                     }
                     ImGui::SameLine();
 
-                    if (ImGui::Button(("Send##" + chatUser).c_str(), ImVec2(100, 30))) {
+                    if (ImGui::Button(("Send##" + *it).c_str(), ImVec2(100, 30))) {
                         if (strlen(privateInputText) > 0) {
-                            privateMessages[chatUser].push_back(username + " (Private): " + std::string(privateInputText));
-                            SendPrivateMessageToServer(client_socket, chatUser, privateInputText);
+                            privateMessages[*it].push_back("You: " + std::string(privateInputText));
+                            SendPrivateMessageToServer(client_socket, *it, privateInputText);
                             privateInputText[0] = '\0';  // 清空输入框
                         }
                     }
 
                     ImGui::End();
 
+                    // 如果窗口被关闭，移除该私聊窗口
+                    if (!isOpen) {
+                        it = openChatWindows.erase(it);
+                    }
+                    else {
+                        ++it;
+                    }
                 }
+
 
 
                 // 聊天输入框和按钮在聊天窗口下方

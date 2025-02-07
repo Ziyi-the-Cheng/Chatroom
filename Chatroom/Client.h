@@ -30,6 +30,7 @@ void SendPrivateMessageToServer(SOCKET client_socket, std::string chatUser, std:
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
     send(client_socket, message.c_str(), static_cast<int>(message.size()), 0) == SOCKET_ERROR;
+    std::cout << "DM: " << message << "\n";
 }
 
 void Receive(SOCKET client_socket, std::string& message) {
