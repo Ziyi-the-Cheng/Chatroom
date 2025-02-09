@@ -68,17 +68,17 @@ int main(int, char**)
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     
-    // 变量定义
-    static bool isConnected = false;    // 用于控制是否连接
-    static std::string username = "";    // 存储用户名
-    static std::vector<std::string> activeUsers; // 存储已经加入聊天室的用户
+    // Global variables initialization
+    static bool isConnected = false;    // determines if it is connected
+    static std::string username = "";    // the username of this client
+    static std::vector<std::string> activeUsers; // stores the users that are currently in the chatroom
 
-    static std::vector<std::string> messages;
-    std::string message;
-    std::thread cli = std::thread(client, std::ref(message));
+    static std::vector<std::string> messages; //Stores the messages in the public chatting area
+    std::string message; //the message that receives from server
+    std::thread cli = std::thread(client, std::ref(message)); //initiate the thread for client
 
-    static std::map<std::string, std::vector<std::string>> privateMessages; // 每个用户都有独立的消息列表
-    static std::set<std::string> openChatWindows; // 跟踪已打开的私聊窗口
+    static std::map<std::string, std::vector<std::string>> privateMessages; // this map stores private messages for different users
+    static std::set<std::string> openChatWindows; // all the current private chat windows 
 
 
     // Main loop
@@ -123,26 +123,24 @@ int main(int, char**)
         
         
         {
-            // 新建窗口用于输入用户名和连接按钮
+            // If the client not connected, show a connection window that allows user to enter the username and connect
             if (!isConnected) {
                 ImGui::Begin("Login", nullptr, ImGuiWindowFlags_NoCollapse);
                 ImGui::Text("Enter your username:");
 
-                // 输入框
                 static char inputText[256] = "";
                 ImGui::InputText("##username", inputText, IM_ARRAYSIZE(inputText));
 
-                // 连接按钮
                 if (strlen(inputText) > 0) {
                     if (ImGui::Button("Connect", ImVec2(100, 30))) {
                         if (isConnected && cli.joinable()) {
                             cli.detach();
                         }
-                        username = inputText;  // 保存用户名
-                        isConnected = true;  // 连接成功
-                        activeUsers.push_back(inputText); // 将用户名添加到活跃用户列表
-                        inputText[0] = '\0';  // 清空输入框
-                        SendMessageToServer(client_socket, username);
+                        username = inputText;  // store the client's username
+                        isConnected = true;  // successfully connected
+                        activeUsers.push_back(inputText); // store the current username to active user list
+                        inputText[0] = '\0'; 
+                        SendMessageToServer(client_socket, username); //send the client's username to the server as the first message
                     }
                 }
                 else {
@@ -154,59 +152,61 @@ int main(int, char**)
                 ImGui::End();
             }
             else {
-                // 显示聊天室窗口
+                // show the chatroom window
                 ImGui::Begin("Chat Room", nullptr, ImGuiWindowFlags_NoCollapse);
 
-                // 更新消息
+                // Whenever client receives a message, determine the type of the message
                 if (message.size() > 0) {
-                    if (message.front() == '+') {
+                    if (message.front() == '+') { //A message starts with "+" means put a username to the currently active user list
                         std::cout << "a name added" << "\n";
-                        message.erase(0, 1);
-                        activeUsers.push_back(message);
+                        message.erase(0, 1); // clear the message variable
+                        activeUsers.push_back(message); //store the active user
                         message = message + " joined the channel!";
                         messages.push_back(message);
                     }
-                    else if (message.front() == '-') {
+                    else if (message.front() == '-') { //A message starts with "-" means delete a username on the currently active user list
                         std::cout << "a name delete" << "\n";
                         message.erase(0, 1);
                         auto it = std::find(activeUsers.begin(), activeUsers.end(), message);
-                        activeUsers.erase(it);
+                        activeUsers.erase(it); //delete the name
                         message = message + " is disconnected!";
                         messages.push_back(message);
                     }
-                    else if (message.front() == '#') {
+                    else if (message.front() == '#') { //A message starts with "-" means it is a private message
+                        //a private message starts with a "#" and with the name who sent the message and content of the message
+                        // e.g. #Ziyi:Hello!
                         std::cout << "recieved a DM";
-                        size_t start = message.find('#') + 1;   // 找到 '#' 后面的第一个字符
-                        size_t end = message.find(':');         // 找到 ':'
-                        std::string sender = message.substr(start, end - start);  // 提取 'neil'
-                        std::string content = message.substr(end + 1);
-                        std::string output = sender + ": " + content;
-                        if (openChatWindows.find(sender) == openChatWindows.end()) {
-                            openChatWindows.insert(sender); // 打开私聊窗口
+                        size_t start = message.find('#') + 1;   // the position of "#"
+                        size_t end = message.find(':');         // the position of ":"
+                        std::string sender = message.substr(start, end - start);  // extract the sender's name
+                        std::string content = message.substr(end + 1); //extract the content
+                        std::string output = sender + ": " + content; //reorganize the message
+                        if (openChatWindows.find(sender) == openChatWindows.end()) { //check if the private chat window with this user is opened
+                            openChatWindows.insert(sender); // open the private chatting window
                         }
-                        privateMessages[sender].push_back(output);
+                        privateMessages[sender].push_back(output); //print the message
                     }
-                    else {
+                    else { //Otherwise it is a public message
                         std::cout << "a message" << "\n";
                         messages.push_back(message);
                     }
                 }
-                message.clear();
+                message.clear(); //reset the message variable
 
-                // 左侧用户列表，显示活跃用户
+                // The online user list on the left side
                 ImGui::BeginChild("UserList", ImVec2(200, 0), true);
                 ImGui::Text("Users:");
                 ImGui::Separator();
                 for (const auto& user : activeUsers) {
-                    if (ImGui::Selectable(user.c_str())) {
-                        openChatWindows.insert(user); // 打开私聊窗口
+                    if (ImGui::Selectable(user.c_str())) { // User can doule click the name on online user list to open a private chat window with others
+                        openChatWindows.insert(user); 
                     }
                 }
                 ImGui::EndChild();
 
                 ImGui::SameLine();
 
-                // 右侧聊天窗口
+                // Main public chatting room window
                 ImGui::BeginChild("ChatWindow", ImVec2(0, -60), true);
                 ImGui::Text("Chat Messages:");
                 ImGui::Separator();
@@ -217,19 +217,17 @@ int main(int, char**)
 
                 ImGui::EndChild();
 
-                // 处理私聊窗口
+                // Handling all private chat window
                 for (auto it = openChatWindows.begin(); it != openChatWindows.end(); ) {
                     bool isOpen = true;
                     ImGui::Begin(((*it) + " (Private Chat)").c_str(), &isOpen, ImGuiWindowFlags_NoCollapse);
 
-                    // 私聊消息显示
                     ImGui::BeginChild("PrivateChatWindow", ImVec2(0, -60), true);
                     for (const auto& privateMsg : privateMessages[*it]) {
                         ImGui::TextWrapped("%s", privateMsg.c_str());
                     }
                     ImGui::EndChild();
 
-                    // 私聊消息输入框和发送按钮
                     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 60);
                     ImGui::Separator();
                     static char privateInputText[256] = "";
@@ -238,7 +236,7 @@ int main(int, char**)
                         if (strlen(privateInputText) > 0) {
                             privateMessages[*it].push_back("You: " + std::string(privateInputText));
                             SendPrivateMessageToServer(client_socket, *it, privateInputText);
-                            privateInputText[0] = '\0';  // 清空输入框
+                            privateInputText[0] = '\0'; 
                         }
                     }
                     ImGui::SameLine();
@@ -247,13 +245,13 @@ int main(int, char**)
                         if (strlen(privateInputText) > 0) {
                             privateMessages[*it].push_back("You: " + std::string(privateInputText));
                             SendPrivateMessageToServer(client_socket, *it, privateInputText);
-                            privateInputText[0] = '\0';  // 清空输入框
+                            privateInputText[0] = '\0'; 
                         }
                     }
 
                     ImGui::End();
 
-                    // 如果窗口被关闭，移除该私聊窗口
+                    // close the private chat window if user clicked the close button
                     if (!isOpen) {
                         it = openChatWindows.erase(it);
                     }
@@ -264,7 +262,7 @@ int main(int, char**)
 
 
 
-                // 聊天输入框和按钮在聊天窗口下方
+                // The input text area and "send" button
                 ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 60);
                 ImGui::Separator();
                 ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x - 220);
@@ -273,12 +271,12 @@ int main(int, char**)
                     if (strlen(inputText) > 0) {
                         messages.push_back(username + ": " + std::string(inputText));
                         SendMessageToServer(client_socket, inputText);
-                        inputText[0] = '\0';  // 清空输入框
+                        inputText[0] = '\0';
                     }
                 }
                 ImGui::SameLine();
 
-                // 发送按钮
+                // "Send" button
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.8f, 0.3f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.6f, 0.1f, 1.0f));
@@ -286,20 +284,20 @@ int main(int, char**)
                     if (strlen(inputText) > 0) {
                         messages.push_back(username + ": " + std::string(inputText));
                         SendMessageToServer(client_socket, inputText);
-                        inputText[0] = '\0';  // 清空输入框
+                        inputText[0] = '\0'; 
                     }
                 }
                 ImGui::PopStyleColor(3);
 
-                // 断开连接按钮放在底部右侧
+                // Disconnection button
                 ImGui::SameLine();
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.7f, 0.2f, 0.2f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f, 0.3f, 0.3f, 1.0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
                 if (ImGui::Button("Disconnect", ImVec2(100, 30))) {
                     std::string dmessage = "-" + username;
-                    SendMessageToServer(client_socket, dmessage);
-                    // 回到登录界面，重置状态
+                    SendMessageToServer(client_socket, dmessage); //Send a deletion to server to inform the current client has disconnect
+                    // return to login window
                     isConnected = false;
                     activeUsers.clear();
                     messages.clear();

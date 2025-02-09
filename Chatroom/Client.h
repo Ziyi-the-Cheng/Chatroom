@@ -8,22 +8,23 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-//real one
-//////////////////////////////////////////
+
 #define DEFAULT_BUFFER_SIZE 1024
 
 std::atomic<bool> close = false;
 
-
 SOCKET client_socket = INVALID_SOCKET;
 
-
+//This function is used for sending message to server
 void SendMessageToServer(SOCKET client_socket, std::string message) {
     if (send(client_socket, message.c_str(), static_cast<int>(message.size()), 0) == SOCKET_ERROR) {
         std::cerr << "Send failed with error: " << WSAGetLastError() << std::endl;
     }
 }
 
+//This function sends a private message to the server. It contains two sendings, 
+//it will first send the name of client who sent the message, then another message 
+//of the DM content
 void SendPrivateMessageToServer(SOCKET client_socket, std::string chatUser, std::string message) {
     chatUser = "#" + chatUser;
     if (send(client_socket, chatUser.c_str(), static_cast<int>(chatUser.size()), 0) == SOCKET_ERROR) {
@@ -40,7 +41,7 @@ void Receive(SOCKET client_socket, std::string& message) {
         char buffer[DEFAULT_BUFFER_SIZE] = { 0 };
         int bytes_received = recv(client_socket, buffer, DEFAULT_BUFFER_SIZE - 1, 0);
         if (bytes_received > 0) {
-            message = buffer;
+            message = buffer; //Change the value of "message" whenever recieves a server message
             buffer[bytes_received] = '\0'; // Null-terminate the received data
             std::cout << "Received(" << count++ << "): " << buffer << std::endl;
         }
@@ -59,6 +60,9 @@ void Receive(SOCKET client_socket, std::string& message) {
     }
 }
 
+//The client funciton take a variable called "message", this variable is initialized in the GUI code, and any messages
+//received from the server will be stored in this variable. Wheneve it changes, it means the client have receive a new
+//message from server, and the client GUI will response respectively
 void client(std::string& message) {
 
     const char* host = "127.0.0.1"; // Server IP address
@@ -101,13 +105,8 @@ void client(std::string& message) {
 
     std::cout << "Connected to the server." << std::endl;
 
-    //  Send(client_socket);
-     // Receive(client_socket);
-    //std::thread t1 = std::thread(Send, client_socket);
-    //std::thread t2 = std::thread(Receive, client_socket, std::ref(message));
+    
     Receive(client_socket, message);
-    //t1.join();
-    //t2.join();
 
     WSACleanup();
 }
