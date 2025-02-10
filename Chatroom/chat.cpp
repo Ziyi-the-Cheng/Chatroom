@@ -50,45 +50,35 @@ void playMusic(FMOD::System* system)
     sound->release();
 }
 
-FMOD::System* fsystem = nullptr;  // 全局的 FMOD 系统对象
-void initializeFMOD() {
+FMOD::System* fsystem = nullptr;  // Global FMOD object
+void initializeFMOD() { //initialize the FMOD system
     if (!fsystem) {
         FMOD::System_Create(&fsystem);
         fsystem->init(512, FMOD_INIT_NORMAL, nullptr);
-        std::cout << "FMOD 系统初始化成功！" << std::endl;
     }
 }
-void playNotificationSound() {
+void playNotificationSound(const char* filename) { // Function to play audio
     if (!fsystem) {
         initializeFMOD();
     }
-
     FMOD::Sound* sound = nullptr;
     FMOD::Channel* channel = nullptr;
-
-    // 加载提示音（你可以换成自己的音频文件路径）
-    fsystem->createSound("n1.mp3", FMOD_DEFAULT, nullptr, &sound);
-
-    // 播放音频
+    fsystem->createSound(filename, FMOD_DEFAULT, nullptr, &sound);
     fsystem->playSound(sound, nullptr, false, &channel);
 
-    // 等待音频播放结束（非阻塞式，FMOD 系统会自己更新状态）
+    // Play through the audio in the background
     bool isPlaying = true;
     while (isPlaying) {
         fsystem->update();
         channel->isPlaying(&isPlaying);
     }
-
-    // 释放音频资源
     sound->release();
-
 }
 
-void shutdownFMOD() {
+void shutdownFMOD() { //Close the FMOD system
     if (fsystem) {
         fsystem->close();
         fsystem->release();
-        std::cout << "FMOD 系统已关闭！" << std::endl;
     }
 }
 
@@ -200,7 +190,6 @@ int main(int, char**)
 
                 if (strlen(inputText) > 0) {
                     if (ImGui::Button("Connect", ImVec2(100, 30))) {
-                        ps.detach();
                         if (isConnected && cli.joinable()) {
                             cli.detach();
                         }
@@ -243,6 +232,8 @@ int main(int, char**)
                     else if (message.front() == '#') { //A message starts with "-" means it is a private message
                         //a private message starts with a "#" and with the name who sent the message and content of the message
                         // e.g. #Ziyi:Hello!
+                        std::thread ps = std::thread(playNotificationSound, "n2.mp3");//play notification audio
+                        ps.detach();
                         std::cout << "recieved a DM";
                         size_t start = message.find('#') + 1;   // the position of "#"
                         size_t end = message.find(':');         // the position of ":"
@@ -255,7 +246,7 @@ int main(int, char**)
                         privateMessages[sender].push_back(output); //print the message
                     }
                     else { //Otherwise it is a public message
-                        std::thread ps = std::thread(playNotificationSound);
+                        std::thread ps = std::thread(playNotificationSound, "n1.mp3");//play notification audio
                         ps.detach();
                         std::cout << "a message" << "\n";
                         messages.push_back(message);
