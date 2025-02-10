@@ -50,6 +50,47 @@ void playMusic(FMOD::System* system)
     sound->release();
 }
 
+FMOD::System* fsystem = nullptr;  // 全局的 FMOD 系统对象
+void initializeFMOD() {
+    if (!fsystem) {
+        FMOD::System_Create(&fsystem);
+        fsystem->init(512, FMOD_INIT_NORMAL, nullptr);
+        std::cout << "FMOD 系统初始化成功！" << std::endl;
+    }
+}
+void playNotificationSound() {
+    if (!fsystem) {
+        initializeFMOD();
+    }
+
+    FMOD::Sound* sound = nullptr;
+    FMOD::Channel* channel = nullptr;
+
+    // 加载提示音（你可以换成自己的音频文件路径）
+    fsystem->createSound("n1.mp3", FMOD_DEFAULT, nullptr, &sound);
+
+    // 播放音频
+    fsystem->playSound(sound, nullptr, false, &channel);
+
+    // 等待音频播放结束（非阻塞式，FMOD 系统会自己更新状态）
+    bool isPlaying = true;
+    while (isPlaying) {
+        fsystem->update();
+        channel->isPlaying(&isPlaying);
+    }
+
+    // 释放音频资源
+    sound->release();
+
+}
+
+void shutdownFMOD() {
+    if (fsystem) {
+        fsystem->close();
+        fsystem->release();
+        std::cout << "FMOD 系统已关闭！" << std::endl;
+    }
+}
 
 // Main code
 int main(int, char**)
@@ -105,11 +146,7 @@ int main(int, char**)
     static std::map<std::string, std::vector<std::string>> privateMessages; // this map stores private messages for different users
     static std::set<std::string> openChatWindows; // all the current private chat windows 
 
-    FMOD::System* system;
-    FMOD::System_Create(&system);
-    system->init(512, FMOD_INIT_NORMAL, NULL);
-
-
+    
 
     // Main loop
     bool done = false;
@@ -163,6 +200,7 @@ int main(int, char**)
 
                 if (strlen(inputText) > 0) {
                     if (ImGui::Button("Connect", ImVec2(100, 30))) {
+                        ps.detach();
                         if (isConnected && cli.joinable()) {
                             cli.detach();
                         }
@@ -217,6 +255,8 @@ int main(int, char**)
                         privateMessages[sender].push_back(output); //print the message
                     }
                     else { //Otherwise it is a public message
+                        std::thread ps = std::thread(playNotificationSound);
+                        ps.detach();
                         std::cout << "a message" << "\n";
                         messages.push_back(message);
                     }
@@ -365,8 +405,7 @@ int main(int, char**)
     ::DestroyWindow(hwnd);
     ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
 
-    system->close();
-    system->release();
+    shutdownFMOD();
 
     return 0;
 }
