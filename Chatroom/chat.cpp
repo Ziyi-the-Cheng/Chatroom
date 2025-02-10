@@ -7,7 +7,17 @@
 #include <vector>
 #include <map>
 #include <set>
+#include <fmod.hpp>
+#include <fmod_errors.h>
+#include <cmath>
+#include <thread>
+#include <chrono>
+#include <iostream>
+#include <conio.h>
+#include <vector>
 
+
+#pragma comment(lib, "fmod_vc.lib")
 #pragma comment(lib,"d3d11.lib")
 
 // Data
@@ -24,6 +34,21 @@ void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+void playMusic(FMOD::System* system)
+{
+    bool isp = true;
+    FMOD::Sound* sound = NULL;
+    FMOD::Channel* channel = NULL;
+    system->createSound("n1.mp3", FMOD_DEFAULT, NULL, &sound);
+    system->playSound(sound, NULL, false, &channel);
+    while (isp)
+    {
+        system->update();
+        channel->isPlaying(&isp);
+    }
+    sound->release();
+}
 
 
 // Main code
@@ -79,6 +104,11 @@ int main(int, char**)
 
     static std::map<std::string, std::vector<std::string>> privateMessages; // this map stores private messages for different users
     static std::set<std::string> openChatWindows; // all the current private chat windows 
+
+    FMOD::System* system;
+    FMOD::System_Create(&system);
+    system->init(512, FMOD_INIT_NORMAL, NULL);
+
 
 
     // Main loop
@@ -334,6 +364,9 @@ int main(int, char**)
     CleanupDeviceD3D();
     ::DestroyWindow(hwnd);
     ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+
+    system->close();
+    system->release();
 
     return 0;
 }

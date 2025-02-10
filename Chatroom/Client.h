@@ -15,6 +15,8 @@ std::atomic<bool> close = false;
 
 SOCKET client_socket = INVALID_SOCKET;
 
+
+
 //This function is used for sending message to server
 void SendMessageToServer(SOCKET client_socket, std::string message) {
     if (send(client_socket, message.c_str(), static_cast<int>(message.size()), 0) == SOCKET_ERROR) {
